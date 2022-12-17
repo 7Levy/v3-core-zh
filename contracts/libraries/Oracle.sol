@@ -14,12 +14,16 @@ library Oracle {
 
     struct Observation {
         // the block timestamp of the observation
+        // oracle时间戳
         uint32 blockTimestamp;
         // the tick accumulator, i.e. tick * time elapsed since the pool was first initialized
+        // tick index 的时间加权累积值
         int56 tickCumulative;
         // the seconds per liquidity, i.e. seconds elapsed / max(1, liquidity) since the pool was first initialized
+        // 价格所在区间的流动性的时间加权累积值
         uint160 secondsPerLiquidityCumulativeX128;
         // whether or not the observation is initialized
+        // 是否已经被初始化
         bool initialized;
     }
 
@@ -37,6 +41,7 @@ library Oracle {
         uint128 liquidity
     ) private pure returns (Observation memory) {
         unchecked {
+            // 上次 Oracle 数据和本次的时间差
             uint32 delta = blockTimestamp - last.blockTimestamp;
             return
                 Observation({
@@ -90,19 +95,23 @@ library Oracle {
         uint16 cardinalityNext
     ) internal returns (uint16 indexUpdated, uint16 cardinalityUpdated) {
         unchecked {
+            // 获取当前的 Oracle 数据
             Observation memory last = self[index];
 
             // early return if we've already written an observation this block
+            // 如前文所述，同一个区块内，只会在第一笔交易中写入 Oracle 数据
             if (last.blockTimestamp == blockTimestamp) return (index, cardinality);
 
             // if the conditions are right, we can bump the cardinality
+            // 检查是否需要使用新的数组空间
             if (cardinalityNext > cardinality && index == (cardinality - 1)) {
                 cardinalityUpdated = cardinalityNext;
             } else {
                 cardinalityUpdated = cardinality;
             }
-
+            // 本次写入的索引，使用余数实现 ring buffer
             indexUpdated = (index + 1) % cardinalityUpdated;
+            // 写入 Oracle 数据
             self[indexUpdated] = transform(last, blockTimestamp, tick, liquidity);
         }
     }
@@ -322,6 +331,7 @@ library Oracle {
     /// @param cardinality The number of populated elements in the oracle array
     /// @return tickCumulatives The tick * time elapsed since the pool was first initialized, as of each `secondsAgo`
     /// @return secondsPerLiquidityCumulativeX128s The cumulative seconds / max(1, liquidity) since the pool was first initialized, as of each `secondsAgo`
+    ///
     function observe(
         Observation[65535] storage self,
         uint32 time,

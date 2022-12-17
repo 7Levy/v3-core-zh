@@ -15,7 +15,9 @@ library Tick {
     // info stored for each initialized individual tick
     struct Info {
         // the total position liquidity that references this tick
+        // 引用该tick的position流动性的总和
         uint128 liquidityGross;
+        // 当tick越界时，整体流动性需要变化的值
         // amount of net liquidity added (subtracted) when tick is crossed from left to right (right to left),
         int128 liquidityNet;
         // fee growth per unit of liquidity on the _other_ side of this tick (relative to the current tick)
@@ -131,7 +133,7 @@ library Tick {
             : liquidityGrossBefore + uint128(liquidityDelta);
 
         if (liquidityGrossAfter > maxLiquidity) revert LO();
-
+        // 判断tick是否被引用，之所以这么写，是需要判断liquidityNet为0的情况(一个引用lowerTick，一个引用upperTIck)
         flipped = (liquidityGrossAfter == 0) != (liquidityGrossBefore == 0);
 
         if (liquidityGrossBefore == 0) {

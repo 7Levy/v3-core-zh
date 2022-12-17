@@ -35,15 +35,21 @@ library SwapMath {
         )
     {
         unchecked {
+            // 判断交易的方向
             bool zeroForOne = sqrtRatioCurrentX96 >= sqrtRatioTargetX96;
             bool exactIn = amountRemaining >= 0;
-
+            // 如果是exactInput=>output
             if (exactIn) {
+                // 先将tokenIn的余额扣除最大的所需手续费
                 uint256 amountRemainingLessFee = FullMath.mulDiv(uint256(amountRemaining), 1e6 - feePips, 1e6);
+                // 获取当前价格所需tokenIn数量
                 amountIn = zeroForOne
                     ? SqrtPriceMath.getAmount0Delta(sqrtRatioTargetX96, sqrtRatioCurrentX96, liquidity, true)
                     : SqrtPriceMath.getAmount1Delta(sqrtRatioCurrentX96, sqrtRatioTargetX96, liquidity, true);
-                if (amountRemainingLessFee >= amountIn) sqrtRatioNextX96 = sqrtRatioTargetX96;
+                // 如果余额充足，那么本次交易即达到目标交易价格
+                if (amountRemainingLessFee >= amountIn)
+                    sqrtRatioNextX96 = sqrtRatioTargetX96;
+                    // 余额不充足，那么计算还需要多少才能达到目标交易价格
                 else
                     sqrtRatioNextX96 = SqrtPriceMath.getNextSqrtPriceFromInput(
                         sqrtRatioCurrentX96,
@@ -64,11 +70,12 @@ library SwapMath {
                         zeroForOne
                     );
             }
-
+            // 是否能够达到目标价格
             bool max = sqrtRatioTargetX96 == sqrtRatioNextX96;
 
-            // get the input/output amounts
+            // x0->x1
             if (zeroForOne) {
+                // max && exactIn
                 amountIn = max && exactIn
                     ? amountIn
                     : SqrtPriceMath.getAmount0Delta(sqrtRatioNextX96, sqrtRatioCurrentX96, liquidity, true);
@@ -76,6 +83,7 @@ library SwapMath {
                     ? amountOut
                     : SqrtPriceMath.getAmount1Delta(sqrtRatioNextX96, sqrtRatioCurrentX96, liquidity, false);
             } else {
+                // x1->x0
                 amountIn = max && exactIn
                     ? amountIn
                     : SqrtPriceMath.getAmount1Delta(sqrtRatioCurrentX96, sqrtRatioNextX96, liquidity, true);
@@ -83,16 +91,16 @@ library SwapMath {
                     ? amountOut
                     : SqrtPriceMath.getAmount0Delta(sqrtRatioCurrentX96, sqrtRatioNextX96, liquidity, false);
             }
-
             // cap the output amount to not exceed the remaining output amount
             if (!exactIn && amountOut > uint256(-amountRemaining)) {
                 amountOut = uint256(-amountRemaining);
             }
-
+            // 如果没达到目标价格，交易就结束了，那么将剩余的tokenIn全部作为手续费
             if (exactIn && sqrtRatioNextX96 != sqrtRatioTargetX96) {
                 // we didn't reach the target, so take the remainder of the maximum input as fee
                 feeAmount = uint256(amountRemaining) - amountIn;
             } else {
+                // 收取手续费
                 feeAmount = FullMath.mulDivRoundingUp(amountIn, feePips, 1e6 - feePips);
             }
         }
